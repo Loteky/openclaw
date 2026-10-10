@@ -1,7 +1,9 @@
-name: Build and Push OpenClaw Image
+name: Build and Deploy OpenClaw
+
 on:
   push:
     branches: [ main ]
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
@@ -16,3 +18,16 @@ jobs:
           context: .
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/openclaw-agent:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Hostinger VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_IP }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          script: |
+            docker pull ${{ secrets.DOCKER_USERNAME }}/openclaw-agent:latest && mkdir -p /opt/openclaw/workspace && docker stop openclaw-agent || true && docker rm openclaw-agent || true && docker run -d --name openclaw-agent -p 8081:8081 -v /opt/openclaw/workspace:/app/workspace -e TELEGRAM_BOT_TOKEN='${{ secrets.TELEGRAM_BOT_TOKEN }}' -e OPENROUTER_API_KEY='${{ secrets.OPENROUTER_API_KEY }}' --restart unless-stopped ${{ secrets.DOCKER_USERNAME }}/openclaw-agent:latest
